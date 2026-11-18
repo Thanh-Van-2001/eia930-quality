@@ -122,3 +122,15 @@ If anomalies are rare and change neither MAPE nor peaks, the paper says the
 files can be used as published and the screen is unnecessary. If they are common
 in the forecast but rare in demand, the recommendation is a forecast screen
 before any evaluation. Either result is reported.
+
+## Amendment 1 (18 November 2026, after the full results and an internal review)
+
+Implementation fix (no result changed): the reference median, the run lengths and the SHIFT lags are computed on the complete hourly UTC grid. Before, rows missing from the files were dropped first.
+
+Exploratory analyses added after the results, reported as exploratory:
+- H2 with SHIFT months realigned by their best lag instead of removed. Six BA-years (CISO 2023, PJM 2020-2024) have every month flagged and so no pre-specified screened MAPE. Also reported: absolute changes in percentage points, and the median year-to-year change of screened MAPE as context for the 10% threshold.
+- Peak-day exposure with days ranked by EIA-adjusted demand and the SHIFT class left out, because ranking by reported demand is partly circular.
+- EIA agreement by class, with and without SEC; EIA value changes separated from EIA fills of empty cells; adjusted against screened annual peaks (the pre-specified comparison (c)).
+- Monthly lag curves (code/lag_diag.py, out/lag_monthly.csv) to date the offsets and check for DST patterns.
+
+Not carried out: the comparison with the cleaned data of Ruggles et al. (secondary analysis 4).

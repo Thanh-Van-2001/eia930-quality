@@ -189,5 +189,76 @@
   "median_demand_shared": 0.00022309808879303935,
   "median_forecast_shared": 0.00025505595289966734,
   "max_rel_change": 32.512930548202874
+ },
+ "amendment1": {
+  "H2_realigned": {
+   "k": 100,
+   "n": 583,
+   "share": 0.17152658662092624,
+   "lo": 0.14179723272109768,
+   "hi": 0.20462823321529183
+  },
+  "H2_dropped": [
+   "CISO 2023",
+   "PJM 2020",
+   "PJM 2021",
+   "PJM 2022",
+   "PJM 2023",
+   "PJM 2024"
+  ],
+  "H2_hits_below_1pp": 28,
+  "H2_realigned_hits_below_1pp": 31,
+  "H2_abs_over_1pp": {
+   "k": 69,
+   "n": 577,
+   "share": 0.1195840554592721,
+   "lo": 0.09424572977971746,
+   "hi": 0.14889125343581625
+  },
+  "H2_realigned_abs_over_1pp": {
+   "k": 76,
+   "n": 583,
+   "share": 0.13036020583190394,
+   "lo": 0.10410125790732402,
+   "hi": 0.16042972666657007
+  },
+  "top_days2": {
+   "k": 106,
+   "n": 583,
+   "share": 0.18181818181818182,
+   "lo": 0.1513299902958466,
+   "hi": 0.21557045152314688
+  },
+  "eia_by_class": {
+   "NONPOS": {
+    "n": 11418,
+    "k": 9494,
+    "n_noSEC": 2206,
+    "k_noSEC": 606
+   },
+   "OVER": {
+    "n": 309,
+    "k": 301,
+    "n_noSEC": 244,
+    "k_noSEC": 244
+   },
+   "SPIKE": {
+    "n": 3378,
+    "k": 171,
+    "n_noSEC": 1104,
+    "k_noSEC": 167
+   },
+   "FLAT": {
+    "n": 3408,
+    "k": 0,
+    "n_noSEC": 3408,
+    "k_noSEC": 0
+   }
+  },
+  "eia_screen_in_noSEC": 0.14607871301350187,
+  "eia_screen_in_median_ba": 0.14814814814814814,
+  "eia_val_flagged_share": 0.9985971943887776,
+  "eia_val_total": 9980,
+  "eia_fill_total": 18831
  }
 }

@@ -71,6 +71,7 @@ def classify(g, hi, lo, flat):
     clean = (lab["demand"] == "") & (L == "")
     month = g.index.to_period("M")
     shift = np.zeros(len(g), dtype=bool)
+    shift_k = np.zeros(len(g), dtype=int)
     fv, dv, cv = f.values, dm.values, clean.values
     for mth in np.unique(month):
         j = np.where(month == mth)[0]
@@ -84,8 +85,10 @@ def classify(g, hi, lo, flat):
             kb = min(maes, key=maes.get)
             if kb != 0 and maes[kb] <= 0.8 * maes[0]:
                 shift[j] = True
+                shift_k[j] = kb
     L[(L == "") & shift & f.notna()] = "SHIFT"
     lab["forecast"] = L
+    lab["_k"] = pd.Series(shift_k, index=g.index)
     return lab
 
 
@@ -102,14 +105,22 @@ def mape(f, y, m):
 rows, by, var_rates = [], [], {k: {} for k in VARIANTS}
 for ba in sample:
     g = d[d["ba"] == ba].set_index("utc_end").sort_index()
-    g = g.reindex(pd.date_range(g.index.min(), g.index.max(), freq="h"))
-    g = g[g["date"].notna()]
+    G = g.reindex(pd.date_range(g.index.min(), g.index.max(), freq="h"))
+    keep = G["date"].notna()
+    g = G[keep]
     for vk, (hi, lo, fl) in VARIANTS.items():
-        lab = classify(g, hi, lo, fl)
+        lab = classify(G, hi, lo, fl)
+        lab = {k: v[keep] for k, v in lab.items()}
         if vk != "main":
             var_rates[vk][ba] = {s: float(lab[s].isin(SHARED).sum() / (lab[s] != "MISS").sum()) for s in ("demand", "forecast")}
             continue
-        Ld, Lf = lab["demand"], lab["forecast"]
+        Ld, Lf, K = lab["demand"], lab["forecast"], lab["_k"]
+    # realigned forecast for SHIFT months (amendment 1): forecast at t+k paired with demand at t
+    pos = np.arange(len(G))[keep.values]
+    fG = G["forecast"].values
+    src = pos + K.values
+    okp = (src >= 0) & (src < len(G))
+    f_al = pd.Series(np.where(okp, fG[np.clip(src, 0, len(G) - 1)], np.nan), index=g.index)
     eia = changed_by_eia(g)
     yr = g["date"].dt.year
     r = {"ba": ba, "median_mw": float(med[ba]), "size": size_group(med[ba]), "hours": int(len(g))}
@@ -124,6 +135,12 @@ for ba in sample:
             pm = m & (L != "MISS")
             r[f"{s}_shared_{per}"] = float((L[m].isin(SHARED)).sum() / pm.sum()) if pm.sum() else np.nan
     flagged = Ld.isin(SHARED)
+    a_, r_ = g["demand_adj"], g["demand"]
+    eia_val = a_.notna() & r_.notna() & ((a_ - r_).abs() > 0.5)
+    r["n_eia_val"], r["n_eia_fill"] = int(eia_val.sum()), int((a_.notna() & r_.isna()).sum())
+    r["k_eia_val_flagged"] = int((eia_val & flagged).sum())
+    for c in SHARED:
+        r[f"eia_n_{c}"], r[f"eia_k_{c}"] = int((Ld == c).sum()), int(((Ld == c) & eia).sum())
     r["eia_changed"] = float(eia.mean())
     r["screen_in_eia"] = float((flagged & eia).sum() / flagged.sum()) if flagged.sum() else np.nan
     r["eia_in_screen"] = float((flagged & eia).sum() / eia.sum()) if eia.sum() else np.nan
@@ -136,6 +153,12 @@ for ba in sample:
         q["mape_raw"] = mape(g["forecast"], g["demand"], m & raw_ok)
         q["mape_scr"] = mape(g["forecast"], g["demand"], m & clean)
         q["rel_change"] = abs(q["mape_raw"] / q["mape_scr"] - 1) if q["mape_scr"] else np.nan
+        q["abs_change"] = abs(q["mape_raw"] - q["mape_scr"])
+        clean2 = Ld.isin(["", "MISS"]) & Lf.isin(["", "MISS", "SHIFT"])
+        q["mape_scr2"] = mape(f_al, g["demand"], m & clean2)
+        q["rel_change2"] = abs(q["mape_raw"] / q["mape_scr2"] - 1) if q["mape_scr2"] else np.nan
+        q["abs_change2"] = abs(q["mape_raw"] - q["mape_scr2"])
+        q["n_shift_hours"] = int((Lf[m] == "SHIFT").sum())
         rep, adj = g.loc[m, "demand"], g.loc[m, "demand_adj"]
         scr = g.loc[m, "demand"].where(Ld[m] == "")
         q["peak_rep"], q["peak_adj"], q["peak_scr"] = float(rep.max()), float(adj.max()), float(scr.max())
@@ -148,6 +171,10 @@ for ba in sample:
         top = dmax.index[dmax >= dmax.quantile(0.95)]
         bad = Ld[m].isin(CLASSES) | Lf[m].isin(CLASSES)
         q["top_days_contaminated"] = bool(bad[gm["date"].isin(top)].any())
+        amax = gm.groupby("date")["demand_adj"].max()
+        top2 = amax.index[amax >= amax.quantile(0.95)]
+        bad2 = Ld[m].isin(CLASSES) | Lf[m].isin(["NONPOS", "OVER", "SPIKE", "FLAT", "COPY"])
+        q["top_days_contaminated2"] = bool(bad2[gm["date"].isin(top2)].any())
         q["forecast_shared"] = float(Lf[m].isin(SHARED).sum() / max((Lf[m] != "MISS").sum(), 1))
         q["demand_shared"] = float(Ld[m].isin(SHARED).sum() / max((Ld[m] != "MISS").sum(), 1))
         by.append(q)
@@ -207,8 +234,22 @@ sec = {"kendall_by_year": tau,
                "pooled_eia_in_screen": float((T["eia_in_screen"] * T["n_eia_changed"]).sum() / max(T["n_eia_changed"].sum(), 1))},
        "class_totals": {s: {c: float(T[f"{s}_{c}"].median()) for c in CLASSES} for s in ("demand", "forecast")},
        "bas_with_class": {s: {c: int((T[f"{s}_{c}"] > 0).sum()) for c in CLASSES} for s in ("demand", "forecast")}}
+v2 = Y.dropna(subset=["rel_change2"])
+noSEC = T.drop(index="SEC", errors="ignore")
+am1 = {"H2_realigned": share_ci(v2["rel_change2"] > 0.10),
+       "H2_dropped": [f"{a} {b}" for a, b in Y.loc[Y["rel_change"].isna(), ["ba", "year"]].values],
+       "H2_hits_below_1pp": int(((yv["rel_change"] > 0.10) & (yv["abs_change"] < 1)).sum()),
+       "H2_realigned_hits_below_1pp": int(((v2["rel_change2"] > 0.10) & (v2["abs_change2"] < 1)).sum()),
+       "H2_abs_over_1pp": share_ci(yv["abs_change"] >= 1), "H2_realigned_abs_over_1pp": share_ci(v2["abs_change2"] >= 1),
+       "top_days2": share_ci(Y["top_days_contaminated2"]),
+       "eia_by_class": {c: {"n": int(T[f"eia_n_{c}"].sum()), "k": int(T[f"eia_k_{c}"].sum()),
+                            "n_noSEC": int(noSEC[f"eia_n_{c}"].sum()), "k_noSEC": int(noSEC[f"eia_k_{c}"].sum())} for c in SHARED},
+       "eia_screen_in_noSEC": float(noSEC[[f"eia_k_{c}" for c in SHARED]].values.sum() / max(noSEC[[f"eia_n_{c}" for c in SHARED]].values.sum(), 1)),
+       "eia_screen_in_median_ba": float((T["screen_in_eia"]).median()),
+       "eia_val_flagged_share": float(T["k_eia_val_flagged"].sum() / max(T["n_eia_val"].sum(), 1)),
+       "eia_val_total": int(T["n_eia_val"].sum()), "eia_fill_total": int(T["n_eia_fill"].sum())}
 desc = {"n_ba": len(T), "n_ba_year": len(Y), "median_demand_shared": float(T["demand_shared"].median()),
         "median_forecast_shared": float(T["forecast_shared"].median()),
         "max_rel_change": float(yv["rel_change"].max()) if len(yv) else np.nan}
-json.dump({"hypotheses": H, "secondary": sec, "descriptive": desc}, open(f"{OUT}/results.json", "w"), indent=1, default=float)
+json.dump({"hypotheses": H, "secondary": sec, "descriptive": desc, "amendment1": am1}, open(f"{OUT}/results.json", "w"), indent=1, default=float)
 print(json.dumps({"hypotheses": H, "descriptive": desc}, indent=1, default=float))

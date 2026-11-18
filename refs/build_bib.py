@@ -18,8 +18,11 @@ DOIS = {
     "hong2016probabilistic": "10.1016/j.ijforecast.2015.11.011",
     "clopper1934use": "10.1093/biomet/26.4.404",
     "kendall1945ties": "10.1093/biomet/33.3.239",
+    "dechalendar2021reconciliation": "10.1016/j.apenergy.2021.117761",
+    "dechalendar2019tracking": "10.1073/pnas.1912950116",
+    "yue2019descriptive": "10.1109/TSG.2019.2894334",
 }
-TITLE_FIX = {"THE USE OF CONFIDENCE OR FIDUCIAL LIMITS ILLUSTRATED IN THE CASE OF THE BINOMIAL": "The use of confidence or fiducial limits illustrated in the case of the binomial",
+TITLE_FIX = {"US electricity": "{US} electricity", "THE USE OF CONFIDENCE OR FIDUCIAL LIMITS ILLUSTRATED IN THE CASE OF THE BINOMIAL": "The use of confidence or fiducial limits illustrated in the case of the binomial",
              "THE TREATMENT OF TIES IN RANKING PROBLEMS": "The treatment of ties in ranking problems"}
 
 
@@ -31,6 +34,10 @@ def get(url, tries=5):
             if e.code != 429 or t == tries - 1:
                 raise
             time.sleep(20 * (t + 1))
+        except urllib.error.URLError:
+            if t == tries - 1:
+                raise
+            time.sleep(5 * (t + 1))
 
 
 out = []
@@ -39,6 +46,7 @@ for key, doi in DOIS.items():
     bib = re.sub(r"^@(\w+)\{[^,]+,", lambda m: "@" + m.group(1) + "{" + key + ",", bib.strip(), count=1)
     bib = re.sub(r"\s*url=\{[^}]*\},", "", bib)
     bib = re.sub(r",\s*month=\w+", "", bib)
+    bib = bib.replace("&amp;", r"\&")
     for a, b in TITLE_FIX.items():
         bib = bib.replace(a, b)
     t = re.search(r"title=\{(.*?)\},", bib)
