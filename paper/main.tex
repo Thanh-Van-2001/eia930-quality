@@ -80,7 +80,7 @@ Holm's procedure \cite{holm1979simple} adjusts the two sign tests. H2 and H3 are
 \subsection{Prevalence}
 Table~\ref{tab:classes} counts the BAs with at least one hour in each class. \res{baAnyDem} of the \res{nBa} BAs have at least one anomalous demand hour and \res{baAnyFc} have at least one anomalous forecast hour. Errors are rare in the typical BA: the median shared rate is \res{medDemShared}\% of hours for demand and \res{medFcShared}\% for the forecast. They are concentrated in a few series (Fig.~\ref{fig:rates}). Three forecast series stand out: \res{fcTopOneBa} (\res{fcTopOneRate}\% of hours, all of them in the SHIFT class), \res{fcTopTwoBa} (\res{fcTopTwoRate}\%, of which \res{chpdSpikeShare}\% are spikes) and \res{fcTopThreeBa} (\res{fcTopThreeRate}\%). A CHPD forecast outside $[0.3, 2]$ times demand in \res{chpdSpikeShare}\% of hours suggests the series does not forecast the reported demand at all.
 
-H1 was not supported. The forecast's shared rate exceeded demand's in \res{hOnePos} of \res{hOneN} BAs with a difference ($p=\res{hOneP}$, Holm \res{hOneHolm}). The result held under all four threshold variants ($p$ from \res{varPmin} to \res{varPmax}). H4 was not supported either. The demand rate rose in \res{hFourUp} BAs and fell in \res{hFourDown} ($p=\res{hFourP}$, Holm \res{hFourHolm}). Small BAs had the highest rates: median shared rates of \res{sizeSmallDem}\% (demand) and \res{sizeSmallFc}\% (forecast), against \res{sizeLargeDem}\% and \res{sizeLargeFc}\% for large BAs.
+H1 was not supported. The forecast's shared rate exceeded demand's in \res{hOnePos} of \res{hOneN} BAs with a difference ($p\res{hOneP}$, Holm $p\res{hOneHolm}$). The result held under all four threshold variants ($p$ from \res{varPmin} to \res{varPmax}). H4 was not supported either. The demand rate rose in \res{hFourUp} BAs and fell in \res{hFourDown} ($p\res{hFourP}$, Holm $p\res{hFourHolm}$). Small BAs had the highest rates: median shared rates of \res{sizeSmallDem}\% (demand) and \res{sizeSmallFc}\% (forecast), against \res{sizeLargeDem}\% and \res{sizeLargeFc}\% for large BAs.
 
 \begin{table}[t]
 \caption{BAs with at least one hour in each class, and the largest share of hours (\%) in one BA}
@@ -92,7 +92,7 @@ H1 was not supported. The forecast's shared rate exceeded demand's in \res{hOneP
 \cmidrule(lr){2-3}\cmidrule(lr){4-5}
 Class & BAs & max (BA) & BAs & max (BA) \\
 \midrule
-\input{tab_classes}
+\csname @@input\endcsname tab_classes.tex 
 \bottomrule
 \end{tabular}
 \end{table}
@@ -137,7 +137,7 @@ The PJM case is systematic. From \res{pjmOffFirst} to \res{pjmOffLast}, the fore
 \toprule
 BA & Years & Shift $k$ & MAPE, $k{=}0$ & MAPE, best $k$ \\
 \midrule
-\input{tab_lag}
+\csname @@input\endcsname tab_lag.tex 
 \bottomrule
 \end{tabular}
 \end{table}

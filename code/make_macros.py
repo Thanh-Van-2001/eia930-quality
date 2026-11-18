@@ -22,8 +22,13 @@ def pct(x, d=1):
     return f"{100 * x:.{d}f}"
 
 
+def pvt(p):
+    return "$<$0.001" if p < 0.001 else f"{p:.3f}" if p < 0.01 else f"{p:.2f}"
+
+
 def pv(p):
-    return "<0.001" if p < 0.001 else f"{p:.3f}" if p < 0.01 else f"{p:.2f}"
+    """Relation form for use as $p\res{key}$."""
+    return "<0.001" if p < 0.001 else "=" + (f"{p:.3f}" if p < 0.01 else f"{p:.2f}")
 
 
 M["nBa"], M["nHoursM"] = str(len(T)), f(T["hours"].sum() / 1e6, 2)
