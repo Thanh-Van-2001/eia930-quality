@@ -1,0 +1,179 @@
+\documentclass[conference]{IEEEtran}
+\usepackage[T1]{fontenc}
+\usepackage{amsmath}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{cite}
+\usepackage[hidelinks]{hyperref}
+\usepackage{xurl}
+\input{macros}
+\newcommand{\repoURL}{https://github.com/Thanh-Van-2001/eia930-quality}
+
+\begin{document}
+
+\title{Rare Errors, Large Effects: Recording Errors in EIA-930 Hourly Demand and Forecast Data}
+
+\author{\IEEEauthorblockN{Thanh Van Nguyen}
+\IEEEauthorblockA{Tsinghua Shenzhen International Graduate School, Tsinghua University, Shenzhen, China\\
+felicenguyen2001@gmail.com}}
+
+\maketitle
+
+\begin{abstract}
+The U.S. Form EIA-930 files give hourly demand and day-ahead demand forecasts for every balancing authority (BA) and are widely used to train and evaluate load forecasts. We screened \res{nBa} BAs over 2016 to 2026 (\res{nHoursM} million BA-hours) with a rule fixed before the analysis. The screen looks for non-positive values, gross outliers, spikes, flat runs, copied forecasts and timestamp offsets. We then measured what these errors do to two quantities analysts compute from the files. Errors are rare: the median BA has \res{medDemShared}\% anomalous demand hours and \res{medFcShared}\% anomalous forecast hours, and forecasts were not worse than demand in a majority of BAs (\res{hOnePos} of \res{hOneN}). Their effects are not small. Removing them changed a BA's annual forecast MAPE by more than 10\% in \res{hTwoShare}\% of BA-years. The annual peak computed from reported demand differed from EIA's adjusted peak by more than 1\% in \res{hThreeShare}\% of BA-years, nearly always because erroneous values inflated it (median ratio \res{hThreeMedRatio}). In \res{topShare}\% of BA-years an anomalous hour fell on one of the year's top 5\% demand days. An exploratory look at the offset class found that the PJM forecast has been one hour out of step with demand since \res{pjmOffFirst}; realigning it cuts its MAPE from \res{pjmMapeZero}\% to \res{pjmMapeBest}\%. EIA's adjusted demand removes the gross errors in demand but leaves the forecast series untouched. We recommend using the adjusted demand, screening forecasts and checking their alignment before any evaluation.
+\end{abstract}
+
+\begin{IEEEkeywords}
+Data quality, load forecasting, forecast evaluation, peak demand, EIA-930.
+\end{IEEEkeywords}
+
+\section{Introduction}
+
+Since July 2015, every U.S. balancing authority (BA) reports hourly demand, a day-ahead demand forecast, net generation and interchange to the Energy Information Administration on Form EIA-930 \cite{eia930}. The files are free, cover the whole country and are updated daily, so they have become a default data set for load-forecasting research, for energy-system models and for public scorecards that rank the BAs' own forecasts \cite{ruggles2020eia,pudl}.
+
+The files contain recording errors. Ruggles et al.\ \cite{ruggles2020eia} documented missing values, zeros, gross outliers, runs of identical values and abrupt jumps in the demand series for 2015 to 2019, and built a screening and imputation procedure for them. The PUDL project maintains a cleaned version \cite{pudl}, and EIA now publishes imputed and adjusted demand columns next to the reported values. Errors in load data are a known hazard more generally: they need dedicated cleansing \cite{chen2010cleansing}, they degrade the forecasting models trained on them \cite{luo2018robustness}, and the same holds for the temperature inputs \cite{sobhani2020temperature}. Percentage error measures such as MAPE are especially sensitive to a few bad values \cite{hyndman2006another}.
+
+Two gaps remain. First, the forecast series has no published screen or imputation, even though it is the series that forecast comparisons use. Second, nobody has measured how much the remaining errors change the numbers analysts actually compute from the files. This paper fills both gaps with an analysis plan committed to version control before any anomaly rate was computed. It makes four contributions:
+\begin{enumerate}
+\item The prevalence of six error classes in both the demand and the forecast series of \res{nBa} BAs, 2016 to 2026.
+\item A comparison of a simple screen with EIA's own adjusted demand.
+\item The effect of the errors on two analyst quantities: each BA's annual forecast MAPE and its annual peak demand.
+\item The detection of timestamp offsets between forecast and demand, the largest of which affects PJM, the biggest BA.
+\end{enumerate}
+
+\section{Data and Methods}
+
+\subsection{Data}
+We use the EIA-930 six-month BALANCE files from July 2015 to the November 2026 vintage; the download script records their SHA-256 hashes. The columns used are Demand (MW), Demand Forecast (MW), Demand (MW) (Adjusted), the local date and hour, and the UTC end time of each hour. The window is local days 2016-01-01 to 2026-09-30. A BA enters the sample if its demand and forecast are both present in at least 80\% of hours in at least 8 of the 11 calendar years. This gives \res{nBa} BAs and \res{nHoursM} million BA-hours. We report results by size: \res{nSizeSmall} BAs with median demand below 500~MW, \res{nSizeMid} between 500 and 5{,}000~MW, and \res{nSizeLarge} above 5{,}000~MW.
+
+\subsection{Error classes}
+For each BA, the reference $R_t$ is the centred 168-hour rolling median of positive reported demand. Each hour of each series (reported demand and forecast, separately) gets at most one class, in this order:
+\begin{enumerate}
+\item MISS: the cell is empty (counted, not an error class).
+\item NONPOS: the value is $\le 0$.
+\item OVER: the value exceeds $10R_t$, including overflow-like sentinels.
+\item SPIKE: the value lies in $(2R_t, 10R_t]$ or in $(0, 0.3R_t)$.
+\item FLAT: the value belongs to a run of at least 6 hours with exactly the same value.
+\item COPY (forecast only): the forecast equals reported demand exactly for at least 24 consecutive hours.
+\item SHIFT (forecast only, per BA-month): some shift $k\in\{-3,\dots,3\}$, $k\ne 0$, gives a mean absolute difference between the shifted forecast and demand at least 20\% below the unshifted one.
+\end{enumerate}
+The anomaly rate of a series is the share of its non-empty hours in classes 2 to 7. To compare demand and forecast on equal terms, the \emph{shared} rate uses classes 2 to 5 only.
+
+\subsection{EIA's adjustments}
+An hour is \emph{EIA-changed} if the adjusted demand differs from reported demand by more than 0.5~MW, or if reported demand is empty and an adjusted value exists.
+
+\subsection{Effects on analyst quantities}
+For each BA-year we compute the forecast's MAPE against reported demand twice. The \emph{raw} MAPE uses every hour with both values present and demand above zero. The \emph{screened} MAPE uses only hours where neither series is in classes 2 to 7. The effect is $|\mathrm{MAPE}_{\mathrm{raw}}/\mathrm{MAPE}_{\mathrm{screened}}-1|$. For the annual peak we compare the maximum hourly reported demand with the maximum hourly EIA-adjusted demand.
+
+\subsection{Hypotheses}
+Four hypotheses were fixed in the plan:
+\begin{itemize}
+\item H1: the shared anomaly rate is higher for the forecast than for demand in a majority of BAs. This is a one-sided sign test.
+\item H2: raw and screened MAPE differ by more than 10\% in at least 10\% of BA-years.
+\item H3: reported and adjusted annual peaks differ by more than 1\% in at least 5\% of BA-years.
+\item H4: the shared demand anomaly rate changed between 2016--2019 and 2023--2026. This is a two-sided sign test.
+\end{itemize}
+Holm's procedure \cite{holm1979simple} adjusts the two sign tests. H2 and H3 are descriptive thresholds on point shares. Their Clopper--Pearson intervals \cite{clopper1934use} treat BA-years as independent and are therefore optimistic. Before the full run, a pipeline check ran on CISO and PJM for 2018. Code, plan history and results are in the repository.
+
+\section{Results}
+
+\subsection{Prevalence}
+Table~\ref{tab:classes} counts the BAs with at least one hour in each class. \res{baAnyDem} of the \res{nBa} BAs have at least one anomalous demand hour and \res{baAnyFc} have at least one anomalous forecast hour. Errors are rare in the typical BA: the median shared rate is \res{medDemShared}\% of hours for demand and \res{medFcShared}\% for the forecast. They are concentrated in a few series (Fig.~\ref{fig:rates}). Three forecast series stand out: \res{fcTopOneBa} (\res{fcTopOneRate}\% of hours, all of them in the SHIFT class), \res{fcTopTwoBa} (\res{fcTopTwoRate}\%, of which \res{chpdSpikeShare}\% are spikes) and \res{fcTopThreeBa} (\res{fcTopThreeRate}\%). A CHPD forecast outside $[0.3, 2]$ times demand in \res{chpdSpikeShare}\% of hours suggests the series does not forecast the reported demand at all.
+
+H1 was not supported. The forecast's shared rate exceeded demand's in \res{hOnePos} of \res{hOneN} BAs with a difference ($p=\res{hOneP}$, Holm \res{hOneHolm}). The result held under all four threshold variants ($p$ from \res{varPmin} to \res{varPmax}). H4 was not supported either. The demand rate rose in \res{hFourUp} BAs and fell in \res{hFourDown} ($p=\res{hFourP}$, Holm \res{hFourHolm}). Small BAs had the highest rates: median shared rates of \res{sizeSmallDem}\% (demand) and \res{sizeSmallFc}\% (forecast), against \res{sizeLargeDem}\% and \res{sizeLargeFc}\% for large BAs.
+
+\begin{table}[t]
+\caption{BAs with at least one hour in each class, and the largest share of hours (\%) in one BA}
+\label{tab:classes}
+\centering
+\begin{tabular}{lrlrl}
+\toprule
+ & \multicolumn{2}{c}{Reported demand} & \multicolumn{2}{c}{Forecast} \\
+\cmidrule(lr){2-3}\cmidrule(lr){4-5}
+Class & BAs & max (BA) & BAs & max (BA) \\
+\midrule
+\input{tab_classes}
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=\columnwidth]{fig_rates.pdf}
+\caption{Share of hours in the shared classes (NONPOS, OVER, SPIKE, FLAT) for each BA, reported demand against forecast. Zero is plotted at the left and bottom edges. The dashed line marks equal rates.}
+\label{fig:rates}
+\end{figure}
+
+\subsection{EIA's adjusted demand}
+EIA changed the reported value in a median of \res{eiaMedChanged}\% of hours per BA, up to \res{eiaMax}\% in \res{eiaMaxBa}. Of the demand hours our screen flagged, EIA had changed \res{eiaScreenIn}\%. Of the hours EIA changed, our screen flagged \res{eiaInScreen}\%. The two procedures agree on the gross errors and differ on the rest. Our thresholds are wide, and EIA also fills missing hours and adjusts values our screen accepts. EIA's adjustments cover demand only. The forecast series is published as reported.
+
+\subsection{Effect on forecast accuracy}
+H2 was supported. Screening changed the annual MAPE by more than 10\% in \res{hTwoK} of \res{hTwoN} BA-years (\res{hTwoShare}\%; interval \res{hTwoLo}--\res{hTwoHi}\%). These BA-years came from \res{hTwoBas} of the \res{hTwoBasOf} BAs. The change exceeded 50\% in \res{hTwoFifty} BA-years and 100\% in \res{hTwoHundred} (Fig.~\ref{fig:effects}a). The share of BA-years above 10\% was \res{hTwoShareSmall}\% for small BAs, \res{hTwoShareMid}\% for mid-sized BAs and \res{hTwoShareLarge}\% for large BAs. The extreme case is \res{worstMapeBa} in \res{worstMapeYear}: a raw MAPE of \res{worstMapeRaw}\% against \res{worstMapeScr}\% after screening.
+
+Rankings of BAs by MAPE survive better than the levels. Kendall's $\tau$ \cite{kendall1945ties} between the raw and screened rankings ranged from \res{tauMin} (\res{tauMinYear}) to \res{tauMax} across years. So a few bad hours can change a BA's accuracy a great deal, while a league table moves much less.
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=\columnwidth]{fig_effects.pdf}
+\caption{Share of BA-years whose (a) annual forecast MAPE changes by more than $x$ when anomalous hours are removed, and (b) annual peak from reported demand differs from the EIA-adjusted peak by more than $x$. Dashed lines: the H2 (10\%) and H3 (1\%) thresholds. Zero is plotted at the left edge.}
+\label{fig:effects}
+\end{figure}
+
+\subsection{Effect on the annual peak}
+H3 was supported. The reported annual peak differed from the adjusted one by more than 1\% in \res{hThreeK} of \res{hThreeN} BA-years (\res{hThreeShare}\%; interval \res{hThreeLo}--\res{hThreeHi}\%). These BA-years came from \res{hThreeBas} BAs. The peak \emph{date} differed in \res{hThreeDateK} BA-years (\res{hThreeDateShare}\%). In \res{hThreeRepHigher} of the \res{hThreeK} cases the reported peak was the larger one. The median ratio of reported to adjusted peak was \res{hThreeMedRatio}, so these are not small revisions: one erroneous value had become the year's peak. The most extreme is PJM in \res{pjmSentinelYear}: a reported hourly demand of $\res{pjmSentinelGw}\times10^{9}$~MW against an adjusted annual peak of \res{pjmTrueGw}~GW (Fig.~\ref{fig:effects}b).
+
+Peak-day forecast evaluation is exposed in the same way. In \res{topK} of \res{topN} BA-years (\res{topShare}\%; interval \res{topLo}--\res{topHi}\%), at least one anomalous hour in either series fell on a day among the year's top 5\% by reported daily maximum demand.
+
+\subsection{Timestamp offsets (exploratory)}
+The SHIFT class flagged months in \res{baFcShift} BAs. To see what lies behind them, we computed each BA-year's MAPE with the forecast shifted by $-3$ to $3$ hours after the screen. This characterisation was not pre-specified. Table~\ref{tab:lag} lists the BA-years in which a non-zero shift lowers the MAPE by at least 10\%.
+
+The PJM case is systematic. From \res{pjmOffFirst} to \res{pjmOffLast}, the forecast matches demand best when shifted by \res{pjmBestLag} hour. Realigning it lowers the annual MAPE from \res{pjmMapeZero}\% to \res{pjmMapeBest}\%, the level PJM had in 2016 to 2018 (\res{pjmMapePre}\%). In other words, a third of PJM's apparent forecast error since 2019 is a timestamp convention, not forecast skill. CISO shows the same one-hour offset in 2016 and in 2023 to 2025. AZPS shows it in 2025 to 2026. Any cross-BA accuracy comparison built on the files inherits these offsets.
+
+\begin{table}[t]
+\caption{BA-years in which shifting the forecast lowers MAPE by at least 10\% (exploratory). Shift $k$: forecast at $t+k$ paired with demand at $t$. MAPE averaged over the listed years.}
+\label{tab:lag}
+\centering
+\begin{tabular}{llrrr}
+\toprule
+BA & Years & Shift $k$ & MAPE, $k{=}0$ & MAPE, best $k$ \\
+\midrule
+\input{tab_lag}
+\bottomrule
+\end{tabular}
+\end{table}
+
+\section{Discussion}
+
+The errors are rare but have large effects. A single sentinel value can turn a BA's year into an outlier, and percentage measures amplify it \cite{hyndman2006another}. Analysts who compute peaks or accuracy from reported values therefore get wrong answers in a sizeable minority of BA-years, while a typical sample check shows clean data.
+
+We recommend four practical steps for users of the files:
+\begin{enumerate}
+\item Use EIA's adjusted demand rather than reported demand for any peak or level statistic.
+\item Screen the forecast series, which EIA does not adjust, with at least the gross-error classes.
+\item Check the alignment of forecast and demand per BA-year before comparing forecasts across BAs. A few lines of code (the MAPE at shifts of $\pm1$ hour) find the offsets in Table~\ref{tab:lag}.
+\item Report accuracy with and without screening, and prefer rankings or robust measures when the screen changes the levels.
+\end{enumerate}
+For EIA, publishing the time convention of each BA's forecast and an adjusted forecast column would remove most of these problems at the source.
+
+\subsection*{Limitations}
+\begin{itemize}
+\item The screen's thresholds are wide by design. It misses errors within $[0.3, 2]$ times the weekly median, which the comparison with EIA's adjustments shows exist. The rates are therefore lower bounds for errors of this kind.
+\item EIA's adjusted values are a reference, not ground truth.
+\item The files are revised over time. Our results describe the November 2026 vintage.
+\item BA-years are not independent, so the intervals for H2 and H3 are optimistic.
+\item The offset analysis was exploratory and should be confirmed with each BA's documentation.
+\end{itemize}
+
+\section{Conclusion}
+Recording errors in EIA-930 are rare in the typical hour but common enough in the typical analysis. They change one BA-year's forecast MAPE by more than 10\% in about one case in six and inflate the annual peak in about one case in six. A one-hour offset hides a third of PJM's forecast skill. Screening, using the adjusted demand and checking alignment are cheap steps that should precede any forecast evaluation on these data.
+
+\section*{Data and code availability}
+The analysis plan with its commit history, the code and the result files are available at \url{\repoURL}. The data are the public EIA-930 files.
+
+\section*{Acknowledgment}
+The author used Claude Opus 5.5 (Anthropic; model identifier claude-opus-5-5) to help write analysis code and draft and edit the text. The author checked the code, the results and the text and takes full responsibility for the content.
+
+\bibliographystyle{IEEEtran}
+\bibliography{refs}
+
+\end{document}

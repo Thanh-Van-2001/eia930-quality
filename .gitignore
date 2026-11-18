@@ -3,3 +3,8 @@ out/*.parquet
 __pycache__/
 *.aux
 *.log
+paper/*.aux
+paper/*.log
+paper/*.bbl
+paper/*.blg
+paper/*.out
