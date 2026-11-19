@@ -7,7 +7,10 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 
-plt.rcParams.update({"font.size": 8, "font.family": "serif", "axes.linewidth": 0.6, "axes.edgecolor": "#555555",
+# Times-like text and mathematics (STIX, shipped with matplotlib) to match the IEEE body text
+plt.rcParams.update({"font.size": 8, "font.family": "serif", "font.serif": ["STIXGeneral"], "mathtext.fontset": "stix",
+                     "xtick.labelsize": 7.5, "ytick.labelsize": 7.5, "axes.labelsize": 8, "legend.fontsize": 7,
+                     "axes.linewidth": 0.6, "axes.edgecolor": "#555555",
                      "xtick.color": "#333333", "ytick.color": "#333333", "axes.labelcolor": "#222222",
                      "legend.frameon": False, "pdf.fonttype": 42})
 INK, GRID = "#222222", "#dddddd"
@@ -27,6 +30,7 @@ ax.plot(lim, lim, color="#888888", lw=0.8, ls="--", zorder=1)
 ax.set_xscale("log"), ax.set_yscale("log"), ax.set_xlim(lim), ax.set_ylim(lim)
 ticks = [1e-4, 1e-3, 1e-2, 1e-1, 1, 10, 100]
 ax.set_xticks(ticks), ax.set_yticks(ticks)
+ax.minorticks_off()
 lab = ["0", "0.001", "0.01", "0.1", "1", "10", "100"]
 ax.set_xticklabels(lab), ax.set_yticklabels(lab)
 ax.set_xlabel("Reported demand: anomalous hours (%)")
@@ -35,33 +39,36 @@ ax.grid(color=GRID, lw=0.5, zorder=0)
 for b in ("SEC", "SWPP", "CHPD", "SPA", "PSEI", "WACM"):
     if b in T.index:
         x, y = max(T.loc[b, "demand_shared"], FLOOR) * 100, max(T.loc[b, "forecast_shared"], FLOOR) * 100
-        ax.annotate(b, (x, y), xytext=(4, 2), textcoords="offset points", fontsize=6.5, color=INK)
-ax.text(1.5e-3, 8, "forecast worse", fontsize=6.5, color="#666666")
-ax.text(1.2, 1.6e-4, "demand worse", fontsize=6.5, color="#666666", ha="center")
-ax.legend(loc="lower right", fontsize=6.5, handletextpad=0.2, borderaxespad=0.2, bbox_to_anchor=(1.0, 0.08))
+        ax.annotate(b, (x, y), xytext=(4, 2), textcoords="offset points", fontsize=7, color=INK)
+ax.text(1.5e-3, 8, "forecast worse", fontsize=7, color="#666666")
+ax.text(1.2, 1.6e-4, "demand worse", fontsize=7, color="#666666", ha="center")
+ax.legend(loc="lower right", fontsize=7, handletextpad=0.2, borderaxespad=0.2, bbox_to_anchor=(1.0, 0.08))
 fig.tight_layout(pad=0.3)
 fig.savefig("paper/fig_rates.pdf")
 
-# Fig 2: effects on MAPE and on the annual peak (ECDF over BA-years)
-fig, axs = plt.subplots(1, 2, figsize=(3.45, 1.75), sharey=True)
+# Fig 2: effects on MAPE and on the annual peak (share of BA-years above x, log x axis)
+fig, axs = plt.subplots(1, 2, figsize=(3.45, 1.95), sharey=True)
 v = Y["rel_change"].dropna().values * 100
 r = (Y["peak_rep"] / Y["peak_adj"]).replace([np.inf, -np.inf], np.nan).dropna().values
-for ax, x, thr, xl in ((axs[0], np.maximum(v, 1e-3), 10, "|MAPE change| (%)"),
-                       (axs[1], np.maximum(np.abs(r - 1) * 100, 1e-3), 1, "|Peak change| (%)")):
-    xs = np.sort(x)
-    ax.step(xs, 1 - np.arange(1, len(xs) + 1) / len(xs), where="post", color="#0072B2", lw=1.6)
+p = np.abs(r - 1) * 100
+for ax, x, thr, lo, ticks, tl, xl in (
+        (axs[0], v, 10, 1e-2, [1e-2, 1, 1e2, 1e4], ["0.01", "1", "100", "$10^4$"], "MAPE change, $x$ (%)"),
+        (axs[1], p, 1, 1e-1, [1e-1, 1e1, 1e3, 1e5, 1e7], ["0.1", "10", "$10^3$", "$10^5$", "$10^7$"], "Peak difference, $x$ (%)")):
+    g = np.logspace(np.log10(lo), np.log10(x.max() * 1.5), 600)
+    ax.plot(g, [100 * (x > t).mean() for t in g], color="#0072B2", lw=1.4, drawstyle="steps-post")
     ax.axvline(thr, color="#888888", lw=0.8, ls="--")
-    ax.set_xscale("log")
+    s_ = 100 * (x > thr).mean()
+    ax.plot([thr], [s_], "o", ms=3.5, color="#D55E00", zorder=4)
+    ax.annotate(f"{s_:.1f}%", (thr, s_), xytext=(4, 4), textcoords="offset points", fontsize=7.5, color="#D55E00")
+    ax.set_xscale("log"), ax.set_xlim(lo, x.max() * 1.5), ax.set_ylim(0, 52)
+    ax.set_xticks(ticks), ax.set_xticklabels(tl)
+    ax.minorticks_off()
     ax.set_xlabel(xl)
     ax.grid(color=GRID, lw=0.5)
-    ax.set_xlim(1e-3, x.max() * 2)
-    tk = [1e-3, 1e-1, 1e1, 1e3, 1e5][: 4 if x.max() < 1e5 else 5]
-    ax.set_xticks(tk)
-    ax.set_xticklabels(["0", "0.1", "10", "$10^3$", "$10^5$"][: len(tk)])
-axs[0].set_ylabel("Share of BA-years above")
-axs[0].set_title("(a) forecast MAPE", fontsize=7.5)
-axs[1].set_title("(b) annual peak demand", fontsize=7.5)
-fig.tight_layout(pad=0.3)
+axs[0].set_ylabel("BA-years above $x$ (%)")
+axs[0].set_title("(a) forecast MAPE", fontsize=8)
+axs[1].set_title("(b) annual peak demand", fontsize=8)
+fig.tight_layout(pad=0.3, w_pad=1.6)
 fig.savefig("paper/fig_effects.pdf")
 
 # Fig 3 (exploratory): monthly MAPE reduction from the best forecast shift, by BA
@@ -70,7 +77,7 @@ LM["t"] = pd.to_datetime((LM["ym"] // 100).astype(str) + "-" + (LM["ym"] % 100).
 LM["gain"] = np.where(LM["best"] != 0, 100 * (1 - LM["mape_best"] / LM["mape0"]), 0.0)
 bas = ["PJM", "CISO", "AZPS", "SC"]
 COL = {-2: "#56B4E9", -1: "#0072B2", 1: "#D55E00"}
-fig, axs = plt.subplots(len(bas), 1, figsize=(3.45, 2.6), sharex=True, sharey=True)
+fig, axs = plt.subplots(len(bas), 1, figsize=(3.45, 2.75), sharex=True, sharey=True)
 for ax, b in zip(axs, bas):
     x = LM[LM["ba"] == b]
     for k, c in COL.items():
@@ -80,15 +87,15 @@ for ax, b in zip(axs, bas):
     ax.axhline(10, color="#888888", lw=0.6, ls="--")
     ax.set_ylim(0, 62)
     ax.set_yticks([0, 25, 50])
-    ax.set_ylabel(b, rotation=0, fontsize=7, labelpad=14, va="center")
+    ax.set_ylabel(b, rotation=0, fontsize=8, labelpad=15, va="center")
     ax.grid(axis="y", color=GRID, lw=0.4)
-fig.supylabel("MAPE reduction from best shift (%)", fontsize=6.5, x=0.01)
+fig.supylabel("MAPE reduction from best shift (%)", fontsize=7.5, x=0.01)
 h, l = [], []
 for ax in axs:
     for hh, ll in zip(*ax.get_legend_handles_labels()):
         if ll not in l:
             h.append(hh), l.append(ll)
-axs[0].legend(h, l, loc="upper right", fontsize=6, ncol=3, handlelength=1, columnspacing=0.8)
+axs[0].legend(h, l, loc="upper right", fontsize=7, ncol=3, handlelength=1, columnspacing=0.8, borderaxespad=0.1)
 fig.tight_layout(pad=0.3, h_pad=0.2)
 fig.savefig("paper/fig_lag.pdf")
 print("ok")

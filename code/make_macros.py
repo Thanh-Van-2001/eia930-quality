@@ -187,6 +187,71 @@ M["chpdBadMin"], M["chpdBadMax"] = f(bad_.min(), 0), f(bad_.max(), 0)
 M["chpdGood"] = f(ch[ch.index >= 2022].mean(), 1)
 M["varPminT"], M["varPmaxT"] = pvt(min(x["p"] for x in V.values())), pvt(max(x["p"] for x in V.values()))
 
+# ---- amendment 2 (exploratory, after independent review; see PLAN.md) ----
+# PJM 2020 peaks (clarification)
+pj = yr_[yr_["ba"] == "PJM"].set_index("year")
+M["pjmRepTwenty"] = f"{pj.loc[2020, 'peak_rep']:,.0f}".replace(",", "{,}")
+M["pjmAdjNineteen"] = f"{pj.loc[2019, 'peak_adj']:,.0f}".replace(",", "{,}")
+M["pjmAdjTwentyOne"] = f"{pj.loc[2021, 'peak_adj']:,.0f}".replace(",", "{,}")
+M["pjmScrAboveNbr"] = pct(pj.loc[2020, "peak_scr"] / max(pj.loc[2019, "peak_adj"], pj.loc[2021, "peak_adj"]) - 1, 0)
+M["hThreeMinDiff"] = f"{np.floor(1000 * yr_.loc[yr_['peak_rel_diff'] > 0, 'peak_rel_diff'].min()) / 10:.1f}"  # rounded down: "exceeded"
+# PJM official coincident-peak hours
+P = json.load(open("out/pjm_official_check.json"))
+M["cpN"], M["cpDem"], M["cpDemWithin"] = str(P["n_days"]), str(P["demand_at_official"]), str(P["demand_within_1h"])
+M["cpFc"], M["cpFcBefore"], M["cpFcDel"] = str(P["forecast_at_official"]), str(P["forecast_before_official"]), str(P["forecast_delayed_at_official"])
+M["cpFcMean"] = f(P["forecast_minus_official_mean_h"], 1).replace("-", "$-$")
+M["cpFcDelMean"] = f(P["forecast_delayed_minus_official_mean_h"], 1).replace("-", "$-$")
+M["cpDemMwDev"] = pct(max(abs(P["demand_over_official_mw_min"] - 1), abs(P["demand_over_official_mw_max"] - 1)), 0)
+for lab, tag in (("std_DecFeb", "Std"), ("dst_JunAug", "Dst")):
+    M[f"pjm{tag}Months"], M[f"pjm{tag}Minus"] = str(P[f"season_{lab}"]["months"]), str(P[f"season_{lab}"]["flagged_minus1"])
+# robustness
+A2 = json.load(open("out/amendment2.json"))
+assert A2["reproduces_prespecified"], "robust.py does not reproduce the pre-specified H1/H2"
+gr = A2["grid_range"]
+M["gridN"] = str(gr["n_cfg"])
+M["gridHTwoLo"], M["gridHTwoHi"] = pct(gr["H2"][0]), pct(gr["H2"][1])
+M["gridNsLo"], M["gridNsHi"] = pct(gr["H2_noshift"][0]), pct(gr["H2_noshift"][1])
+M["gridAbsLo"], M["gridAbsHi"] = pct(gr["H2_abs1pp"][0]), pct(gr["H2_abs1pp"][1])
+M["gridHOnePosLo"], M["gridHOnePosHi"] = str(gr["H1_pos"][0]), str(gr["H1_pos"][1])
+M["gridHOnePLo"], M["gridHOnePHi"] = pvt(gr["H1_p"][0]), pvt(gr["H1_p"][1])
+# the COPY run length must not change any grid result (H1 cannot depend on it: COPY is not a shared class)
+sig = {}
+for tag, x in A2["grid"].items():
+    hi_, lo_, fl_, cp_ = tag.split("_")
+    sig.setdefault((hi_, lo_, fl_), set()).add((x["H1"]["pos"], x["H1"]["n"], x["H2"]["k"], x["H2_noshift"]["k"], x["H2_abs1pp"]["k"]))
+assert all(len(v) == 1 for v in sig.values()), "COPY run length changes a grid result"
+M["gridNdistinct"] = str(len(sig))
+lowp = sorted(A2["grid"].items(), key=lambda kv: kv[1]["H1"]["p"])[0]
+hi_, lo_, fl_, _ = lowp[0].split("_")
+M["gridMinPSpikeHi"], M["gridMinPSpikeLo"], M["gridMinPFlat"] = hi_, lo_, fl_
+M["gridMinPPos"], M["gridMinPN"], M["gridMinPP"] = str(lowp[1]["H1"]["pos"]), str(lowp[1]["H1"]["n"]), pv(lowp[1]["H1"]["p"])
+M["gridSigCombos"] = str(sum(1 for k in sig if A2["grid"]["_".join(k) + "_24"]["H1"]["p"] < 0.05))
+SHARED_ = ["NONPOS", "OVER", "SPIKE", "FLAT"]
+M["gridHTwoAllAbove"] = "yes" if gr["H2_supported_all"] and gr["H2_noshift_supported_all"] else "no"
+main_tag = "2_0.3_6_24"
+g0 = A2["grid"][main_tag]
+M["hTwoNsK"], M["hTwoNsN"], M["hTwoNsShare"] = str(g0["H2_noshift"]["k"]), str(g0["H2_noshift"]["n"]), pct(g0["H2_noshift"]["share"])
+M["hTwoAbsK"] = str(g0["H2_abs1pp"]["k"])
+M["hTwoAbsMedHits"] = f(A2["H2_abs"]["median_abs_hits"], 1)
+M["hTwoAbsQlo"], M["hTwoAbsQhi"] = f(A2["H2_abs"]["q25_abs_hits"], 1), f(A2["H2_abs"]["q75_abs_hits"], 1)
+CL_ = A2["cluster"]
+for k, tag in (("H2", "hTwo"), ("H2_noshift", "hTwoNs"), ("H2_realigned", "hTwoReal"), ("H2_abs1pp", "hTwoAbs"), ("H3", "hThree")):
+    M[f"{tag}ClLo"], M[f"{tag}ClHi"] = pct(CL_[k]["lo"]), pct(CL_[k]["hi"])
+M["bootB"] = f"{CL_['B']:,}".replace(",", "{,}")
+for k, tag in (("H1_own_ref", "Own"), ("H1_no_dem_anom", "Nda")):
+    M[f"hOne{tag}Pos"], M[f"hOne{tag}N"], M[f"hOne{tag}P"] = str(A2[k]["pos"]), str(A2[k]["n"]), pv(A2[k]["p"])
+th = A2["H3_thresholds"]
+M["hThreeTwoPct"], M["hThreeFivePct"], M["hThreeTenPct"] = pct(th["0.02"]["share"]), pct(th["0.05"]["share"]), pct(th["0.1"]["share"])
+M["hThreeNoGross"], M["hThreeNoGrossK"] = pct(A2["H3_without_gross"]["share"]), str(A2["H3_without_gross"]["k"])
+EV = pd.DataFrame(A2["events"])
+for ev in ("Uri", "Elliott"):
+    e = EV[EV["event"] == ev]
+    M[f"ev{ev}Hours"] = f"{int(e['hours'].sum()):,}".replace(",", "{,}")
+    M[f"ev{ev}Dem"], M[f"ev{ev}Fc"] = str(int(e["demand_flagged"].sum())), str(int(e["forecast_flagged"].sum()))
+    fc_cls = pd.DataFrame(list(e["forecast_classes"])).sum()
+    M[f"ev{ev}FcShared"] = str(int(sum(fc_cls.get(c, 0) for c in SHARED_)))
+    M[f"ev{ev}FcShift"] = str(int(fc_cls.get("SHIFT", 0)))
+
 with open("paper/macros.tex", "w", encoding="utf-8") as fh:
     fh.write("% generated by code/make_macros.py -- do not edit\n\\makeatletter\n")
     for k, v in sorted(M.items()):
