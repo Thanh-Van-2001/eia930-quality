@@ -134,3 +134,54 @@ Exploratory analyses added after the results, reported as exploratory:
 - Monthly lag curves (code/lag_diag.py, out/lag_monthly.csv) to date the offsets and check for DST patterns.
 
 Not carried out: the comparison with the cleaned data of Ruggles et al. (secondary analysis 4).
+
+## Amendment 2 (19 November 2026, exploratory, after independent review)
+
+Logged before any of these analyses was run. Reason: an independent automated
+review of the submitted paper (AI-Scientist-v2 reviewer form) asked which series
+carries the PJM offset, how sensitive H2 and H3 are to the thresholds, whether
+H1 is confounded by the demand-based reference, how much of H2 is due to the
+SHIFT class, and for intervals that do not treat BA-years as independent. All of
+the following are exploratory. None changes a pre-specified hypothesis, outcome,
+threshold or test, and the pre-specified results are reported unchanged.
+
+1. Which PJM series is offset (code/pjm_official_check.py,
+   out/pjm_official_check.json). PJM's official summer coincident peaks
+   (5CP: five days per year, date and hour ending EPT), 2022 to 2026,
+   transcribed from PJM's reports "Summer YYYY Peaks and 5CPs" (URLs and SHA-256
+   in the script; the PDFs are not redistributed). For each of the 25 days: the
+   hour of the daily maximum of EIA-930 reported demand, of the forecast as
+   published, and of the forecast delayed by one hour (k = -1). Counts of days
+   on which each peaks at the official hour. Gross errors are removed as in
+   code/lag_diag.py. From out/lag_monthly.csv: PJM's best monthly shift since
+   February 2019 in standard-time months (December to February) and
+   daylight-time months (June to August). This check was first run in the
+   author's study cp-forecast-value and is re-implemented here on this
+   repository's data.
+2. Threshold grid for H1 and H2 (code/robust.py, out/amendment2.json): SPIKE
+   bounds (upper, lower) in {(1.5, 0.5), (2, 0.3), (3, 0.2)} x FLAT run length in
+   {4, 6, 12} x COPY run length in {12, 24, 48} hours, 27 configurations
+   including the pre-specified one. Per configuration: the H1 sign test, the H2
+   share, the H2 share without SHIFT (item 3) and the share of BA-years whose
+   MAPE changes by at least 1 percentage point. The OVER bound (10 x R_t) only
+   moves hours between OVER and SPIKE and changes no hour's flagged status, so it
+   is not varied. H3 does not use the screen; its sensitivity is reported for its
+   own threshold (0.5%, 2%, 5%, 10%) and without BA-years whose reported peak
+   exceeds twice the adjusted peak.
+3. H2 without SHIFT: screened MAPE excludes hours in classes 2 to 6 only, and
+   SHIFT months are kept as published. Absolute changes in percentage points: the
+   share of BA-years changing by at least 1 point, and the number of H2
+   exceedances below 1 point.
+4. BA-cluster bootstrap: 10,000 resamples of BAs with replacement (seed
+   20261119), percentile 95% intervals for the H2 share, the H2 share without
+   SHIFT, the 1-point share and the H3 share.
+5. H1 confounding: (a) the forecast's reference is the centred 168-hour rolling
+   median of the positive forecast itself; (b) forecast flags at hours where
+   reported demand is in classes 2 to 5 are not counted. One-sided sign test as
+   for H1, no multiplicity adjustment.
+6. Known extreme events: hours in classes 2 to 5 (demand) and 2 to 7 (forecast)
+   during Winter Storm Uri (local days 13 to 20 February 2021; ERCO, SWPP, MISO)
+   and Winter Storm Elliott (23 to 26 December 2022; PJM, TVA, DUK), as a check
+   for false flags on genuine extremes. No precision or recall is estimated.
+7. Clarification only: PJM's 2020 reported, adjusted and screened peaks and the
+   adjusted peaks of 2019 and 2021, from out/ba_year.csv.
