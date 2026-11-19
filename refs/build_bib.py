@@ -21,9 +21,12 @@ DOIS = {
     "dechalendar2021reconciliation": "10.1016/j.apenergy.2021.117761",
     "dechalendar2019tracking": "10.1073/pnas.1912950116",
     "yue2019descriptive": "10.1109/TSG.2019.2894334",
+    "hirth2018entsoe": "10.1016/j.apenergy.2018.04.048",
+    "hewamalage2023forecast": "10.1007/s10618-022-00894-5",
 }
 TITLE_FIX = {"US electricity": "{US} electricity", "THE USE OF CONFIDENCE OR FIDUCIAL LIMITS ILLUSTRATED IN THE CASE OF THE BINOMIAL": "The use of confidence or fiducial limits illustrated in the case of the binomial",
-             "THE TREATMENT OF TIES IN RANKING PROBLEMS": "The treatment of ties in ranking problems"}
+             "THE TREATMENT OF TIES IN RANKING PROBLEMS": "The treatment of ties in ranking problems",
+             "The ENTSO-E Transparency Platform – A review of Europe’s": "The {ENTSO-E Transparency Platform} -- A review of {Europe}'s"}
 
 
 def get(url, tries=5):
